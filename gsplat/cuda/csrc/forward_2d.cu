@@ -286,9 +286,9 @@ __global__ void rasterize_forward(
     __shared__ float3 Tv_batch[MAX_BLOCK_SIZE];
     __shared__ float3 Tw_batch[MAX_BLOCK_SIZE];
 
-    __shared__ float3 u_transform[MAX_BLOCK_SIZE];
-    __shared__ float3 v_transform[MAX_BLOCK_SIZE];
-    __shared__ float3 w_transform[MAX_BLOCK_SIZE];
+    __shared__ float3 u_transform_batch[MAX_BLOCK_SIZE];
+    __shared__ float3 v_transform_batch[MAX_BLOCK_SIZE];
+    __shared__ float3 w_transform_batch[MAX_BLOCK_SIZE];
 
     // current visibility left to render
     float T = 1.f;
@@ -327,9 +327,9 @@ __global__ void rasterize_forward(
             Tw_batch[tr] = {transMats[9 * g_id + 6], transMats[9 * g_id + 7], transMats[9 * g_id + 8]};
 
             //====== New Version ======//
-            u_transform[tr] = u_transforms[g_id];
-            v_transform[tr] = v_transforms[g_id];
-            w_transform[tr] = w_transforms[g_id];
+            u_transform_batch[tr] = u_transforms[g_id];
+            v_transform_batch[tr] = v_transforms[g_id];
+            w_transform_batch[tr] = w_transforms[g_id];
         }
 
         // Wait for other threads to collect the gaussians in batch
@@ -346,9 +346,16 @@ __global__ void rasterize_forward(
             float3 Tv = Tv_batch[t];
             float3 Tw = Tw_batch[t];
 
-            float3 k = {-Tu.x + px * Tw.x, -Tu.y + px * Tw.y, -Tu.z + px * Tw.z};
-            float3 l = {-Tv.x + py * Tw.x, -Tv.y + py * Tw.y, -Tv.z + py * Tw.z};
-             
+            float3 u_transform = u_transform_batch[t];
+            float3 v_transform = v_transform_batch[t];
+            float3 w_transform = w_transform_batch[t];
+
+            // float3 k = {-Tu.x + px * Tw.x, -Tu.y + px * Tw.y, -Tu.z + px * Tw.z};
+            float3 k = {-u_transform.x + px * w_transform.x, -u_transform.y + px * w_transform.y, -u_transform.z + px * w_transform.z};
+
+            // float3 l = {-Tv.x + py * Tw.x, -Tv.y + py * Tw.y, -Tv.z + py * Tw.z};
+            float3 l = {-v_transform.x + py * w_transform.x, -v_transform.y + py * w_transform.y, -v_transform.z + py * w_transform.z};
+
             // cross product of two planes is a line
             float3 p = cross_product(k, l);
 
