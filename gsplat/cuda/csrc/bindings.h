@@ -46,6 +46,9 @@ std::tuple<
     torch::Tensor,
     torch::Tensor,
     torch::Tensor,
+    torch::Tensor,
+    torch::Tensor,
+    torch::Tensor,
     torch::Tensor>
 project_gaussians_forward_tensor(
     const int num_points,
@@ -125,7 +128,10 @@ std::tuple<
     const torch::Tensor &gaussian_ids_sorted,
     const torch::Tensor &tile_bins,
     const torch::Tensor &xys,
-    const torch::Tensor &conics,
+    const torch::Tensor &transMats,
+    const torch::Tensor &u_transforms,
+    const torch::Tensor &v_transforms,
+    const torch::Tensor &w_transforms,
     const torch::Tensor &colors,
     const torch::Tensor &opacities,
     const torch::Tensor &background

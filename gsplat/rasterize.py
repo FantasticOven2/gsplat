@@ -20,6 +20,9 @@ def rasterize_gaussians(
     radii: Float[Tensor, "*batch 1"],
     num_tiles_hit: Int[Tensor, "*batch 1"],
     transMats: Float[Tensor, "*batch 3 3"],
+    u_transforms: Float[Tensor, "*batch 3"],
+    v_transforms: Float[Tensor, "*batch 3"],
+    w_transforms: Float[Tensor, "*batch 3"],
     colors: Float[Tensor, "*batch channels"],
     opacity: Float[Tensor, "*batch 1"],
     img_height: int,
@@ -53,6 +56,7 @@ def rasterize_gaussians(
         - **out_img** (Tensor): N-dimensional rendered output image.
         - **out_alpha** (Optional[Tensor]): Alpha channel of the rendered output image.
     """
+    print(block_width)
     assert block_width > 1 and block_width <= 16, "block_width must be between 2 and 16"
     if colors.dtype == torch.uint8:
         # make sure colors are float [0,1]
@@ -79,6 +83,9 @@ def rasterize_gaussians(
         radii.contiguous(),
         # conics.contiguous(),
         transMats.contiguous(),
+        u_transforms.contiguous(),
+        v_transforms.contiguous(),
+        w_transforms.contiguous(),
         num_tiles_hit.contiguous(),
         colors.contiguous(),
         opacity.contiguous(),
@@ -101,6 +108,9 @@ class _RasterizeGaussians(Function):
         radii: Float[Tensor, "*batch 1"],
         # conics: Float[Tensor, "*batch 3"],
         transMats: Float[Tensor, "*batch 3 3"],
+        u_transforms: Float[Tensor, "*batch 3"],
+        v_transforms: Float[Tensor, "*batch 3"],
+        w_transforms: Float[Tensor, "*batch 3"],
         num_tiles_hit: Int[Tensor, "*batch 1"],
         colors: Float[Tensor, "*batch channels"],
         opacity: Float[Tensor, "*batch 1"],
@@ -167,6 +177,9 @@ class _RasterizeGaussians(Function):
                 xys,
                 # conics,
                 transMats,
+                u_transforms,
+                v_transforms,
+                w_transforms,
                 colors,
                 opacity,
                 background,
@@ -182,6 +195,9 @@ class _RasterizeGaussians(Function):
             tile_bins,
             xys,
             transMats,
+            u_transforms,
+            v_transforms,
+            w_transforms,
             colors,
             opacity,
             background,
@@ -213,6 +229,9 @@ class _RasterizeGaussians(Function):
             xys,
             # conics,
             transMats,
+            u_transforms,
+            v_transforms,
+            w_transforms,
             colors,
             opacity,
             background,

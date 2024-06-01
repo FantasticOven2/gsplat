@@ -29,7 +29,10 @@ __global__ void project_gaussians_forward_kernel(
     float* __restrict__ depths,
     int* __restrict__ radii,
     int32_t* __restrict__ num_tiles_hit,
-    float* __restrict__ transMats
+    float* __restrict__ transMats,
+    float3* __restrict__ u_transforms,
+    float3* __restrict__ v_transforms,
+    float3* __restrict__ w_transforms
 ) {
     // printf("Here\n");
     unsigned idx = cg::this_grid().thread_rank(); // idx of thread within grid
@@ -63,6 +66,12 @@ __global__ void project_gaussians_forward_kernel(
     // Here we build transformation matrix M in 2DGS
     //====== 2DGS Specific ======//
     float* cur_transMats = &(transMats[9 * idx]);
+
+    //======= New Version ======//
+    float3 u_transform;
+    float3 v_transform;
+    float3 w_transform;
+
     bool ok;
     float3 normal;
     float2 center;
@@ -75,6 +84,9 @@ __global__ void project_gaussians_forward_kernel(
         quat,
         viewmat,
         cur_transMats,
+        u_transform,
+        v_transform,
+        w_transform,
         normal,
         center,
         radius
@@ -94,6 +106,11 @@ __global__ void project_gaussians_forward_kernel(
     depths[idx] = p_view.z;
     radii[idx] = (int)radius;
     xys[idx] = center;
+
+    //====== New Version ======//
+    u_transforms[idx] = u_transform;
+    v_transforms[idx] = v_transform;
+    w_transforms[idx] = w_transform;
 }
 
 
@@ -223,6 +240,9 @@ __global__ void rasterize_forward(
     const int2* __restrict__ tile_bins,
     const float2* __restrict__ xys,
     const float* __restrict__ transMats,
+    const float3* __restrict__ u_transforms,
+    const float3* __restrict__ v_transforms,
+    const float3* __restrict__ w_transforms,
     const float3* __restrict__ colors,
     const float* __restrict__ opacities,
     float* __restrict__ final_Ts,
@@ -266,6 +286,10 @@ __global__ void rasterize_forward(
     __shared__ float3 Tv_batch[MAX_BLOCK_SIZE];
     __shared__ float3 Tw_batch[MAX_BLOCK_SIZE];
 
+    __shared__ float3 u_transform[MAX_BLOCK_SIZE];
+    __shared__ float3 v_transform[MAX_BLOCK_SIZE];
+    __shared__ float3 w_transform[MAX_BLOCK_SIZE];
+
     // current visibility left to render
     float T = 1.f;
     // index of most recent gaussian to write to this thread's pixel
@@ -301,6 +325,11 @@ __global__ void rasterize_forward(
             Tu_batch[tr] = {transMats[9 * g_id + 0], transMats[9 * g_id + 1], transMats[9 * g_id + 2]};
             Tv_batch[tr] = {transMats[9 * g_id + 3], transMats[9 * g_id + 4], transMats[9 * g_id + 5]};
             Tw_batch[tr] = {transMats[9 * g_id + 6], transMats[9 * g_id + 7], transMats[9 * g_id + 8]};
+
+            //====== New Version ======//
+            u_transform[tr] = u_transforms[g_id];
+            v_transform[tr] = v_transforms[g_id];
+            w_transform[tr] = w_transforms[g_id];
         }
 
         // Wait for other threads to collect the gaussians in batch
@@ -400,6 +429,9 @@ __device__ bool build_transform_and_AABB(
     const float4 __restrict__ quat,
     const float* __restrict__ viewmat,
     float* transMat,
+    float3& u_transform,
+    float3& v_transform,
+    float3& w_transform,
     float3& normal,
     float2& center,
     float& radius
@@ -435,6 +467,11 @@ __device__ bool build_transform_and_AABB(
 	transMat[6] = M[2].x;
 	transMat[7] = M[2].y;
 	transMat[8] = M[2].z;
+
+    //====== New Version ======//
+    u_transform = {M[0].x, M[0].y, M[0].z};
+    v_transform = {M[1].x, M[1].y, M[1].z};
+    w_transform = {M[2].x, M[2].y, M[2].z};
     
     // Compute AABB
     glm::vec3 temp_point = glm::vec3(1.0f, 1.0f, -1.0f);
