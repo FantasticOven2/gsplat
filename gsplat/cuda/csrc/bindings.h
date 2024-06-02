@@ -80,6 +80,9 @@ project_gaussians_backward_tensor(
     torch::Tensor &quats,
     torch::Tensor &viewmat,
     torch::Tensor &transMats,
+    torch::Tensor &u_transforms,
+    torch::Tensor &v_transforms,
+    torch::Tensor &w_transforms,
     const float fx,
     const float fy,
     const float cx,
@@ -88,7 +91,10 @@ project_gaussians_backward_tensor(
     const unsigned img_width,
     torch::Tensor &cov3d,
     torch::Tensor &radii,
-    torch::Tensor &dL_dtransMats
+    torch::Tensor &dL_dtransMats,
+    torch::Tensor &v_u_transforms,
+    torch::Tensor &v_v_transforms,
+    torch::Tensor &v_w_transforms
     // torch::Tensor &dL_dnormal3Ds
     // torch::Tensor &conics,
     // torch::Tensor &compensation,
@@ -185,6 +191,9 @@ std::
         torch::Tensor, // dL_dxy
         torch::Tensor, // dL_dxy_abs
         torch::Tensor, // dL_dtransMats
+        torch::Tensor, // v_u_transforms
+        torch::Tensor, // v_v_transforms
+        torch::Tensor, // v_w_transforms
         torch::Tensor, // dL_dcolors
         torch::Tensor  // dL_dopacity
         >
@@ -197,6 +206,9 @@ std::
         const torch::Tensor &xys,
         // const torch::Tensor &conics,
         const torch::Tensor &transMats,
+        const torch::Tensor &u_transforms,
+        const torch::Tensor &v_transforms,
+        const torch::Tensor &w_transforms,
         const torch::Tensor &colors,
         const torch::Tensor &opacities,
         const torch::Tensor &background,

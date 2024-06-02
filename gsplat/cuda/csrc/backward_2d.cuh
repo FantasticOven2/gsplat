@@ -18,9 +18,15 @@ __global__ void project_gaussians_backward_kernel(
     const float* __restrict__ cov3d,
     const int* __restrict__ radii,
     const float* __restrict__ transMats,
+    const float3* __restrict__ u_transforms,
+    const float3* __restrict__ v_transforms,
+    const float3* __restrict__ w_transforms,
 
     // grad input
     float* __restrict__ dL_dtransMats,
+    float3* __restrict__ v_u_transforms,
+    float3* __restrict__ v_v_transforms,
+    float3* __restrict__ v_w_transforms,
     // const float* __restrict__ dL_dnormal3Ds,
 
     // grad output
@@ -37,6 +43,9 @@ __global__ void rasterize_backward_kernel(
     const int2* __restrict__ tile_bins,
     const float2* __restrict__ xys,
     const float* __restrict__ transMats,
+    const float3* __restrict__ u_transforms,
+    const float3* __restrict__ v_transforms,
+    const float3* __restrict__ w_transforms,
     const float3* __restrict__ rgbs,
     const float* __restrict__ opacities,
     const float3& __restrict__ background,
@@ -50,6 +59,9 @@ __global__ void rasterize_backward_kernel(
     // grad_output
     float2* __restrict__ v_mean2D,
     float* __restrict__ dL_dtransMat,
+    float3* __restrict__ v_u_transform,
+    float3* __restrict__ v_v_transform,
+    float3* __restrict__ v_w_transform,
     float3* __restrict__ dL_drgb,
     float* __restrict__ dL_dopacity
 );
@@ -64,8 +76,18 @@ __device__ void build_H(
     float tan_fovy,
     const float* transMat,
 
+    //====== New Version ======//
+    const float3* u_transform,
+    const float3* v_transform,
+    const float3* w_transform,
+
     // grad input
     const float* dL_dtransMat,
+
+    //====== New Version ======//
+    const float3* v_u_transform,
+    const float3* v_v_transform,
+    const float3* v_w_transform,
     // const float* dL_dnormal3D,
 
     // grad output
@@ -81,7 +103,17 @@ __device__ void build_AABB(
     const float H,
     const float * transMats,
 
+    //====== New Version ======//
+    const float3* u_transforms,
+    const float3* v_transforms,
+    const float3* w_transforms,
+
     // grad output
     float3 * v_mean2Ds,
-    float *dL_transMats
+    float *dL_transMats,
+
+    //====== New Version ======//
+    float3* v_u_transforms,
+    float3* v_v_transforms,
+    float3* v_w_transforms
 );

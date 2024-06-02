@@ -95,7 +95,7 @@ class SimpleTrainer:
             [
                 [1.0, 0.0, 0.0, 0.0],
                 [0.0, 1.0, 0.0, 0.0],
-                [0.0, 0.0, 1.0, 0.0],
+                [0.0, 0.0, 1.0, 8.0],
                 [0.0, 0.0, 0.0, 1.0],
             ],
             device=self.device,
@@ -144,7 +144,7 @@ class SimpleTrainer:
             [
                 [1.0, 0.0, 0.0, 0.0],
                 [0.0, 1.0, 0.0, 0.0],
-                [0.0, 0.0, 1.0, 0.0],
+                [0.0, 0.0, 1.0, 8.0],
                 [0.0, 0.0, 0.0, 1.0],
             ],
             device=self.device,
@@ -230,77 +230,77 @@ class SimpleTrainer:
         frames = []
         times = [0] * 3  # project, rasterize, backward
         B_SIZE = 16
-        with torch.no_grad():
-            for iter in range(iterations):
-                start = time.time()
-                # pdb.set_trace()
-                (   xys,
-                    depths,
-                    radii,
-                    num_tiles_hit,
-                    cov3d,
-                    transMats,
-                    u_transforms,
-                    v_transforms,
-                    w_transforms
-                )  = project_gaussians(
-                    self.means,
-                    self.scales,
-                    1,
-                    self.quats / self.quats.norm(dim=-1, keepdim=True),
-                    self.viewmat,
-                    self.focal,
-                    self.focal,
-                    self.W / 2,
-                    self.H / 2,
-                    self.H,
-                    self.W,
-                    B_SIZE,
-                )
+        # with torch.no_grad():
+        for iter in range(iterations):
+            start = time.time()
+            # pdb.set_trace()
+            (   xys,
+                depths,
+                radii,
+                num_tiles_hit,
+                cov3d,
+                transMats,
+                u_transforms,
+                v_transforms,
+                w_transforms
+            )  = project_gaussians(
+                self.means,
+                self.scales,
+                1,
+                self.quats / self.quats.norm(dim=-1, keepdim=True),
+                self.viewmat,
+                self.focal,
+                self.focal,
+                self.W / 2,
+                self.H / 2,
+                self.H,
+                self.W,
+                B_SIZE,
+            )
 
-                # pdb.set_trace()
-                torch.cuda.synchronize()
-                times[0] += time.time() - start
-                start = time.time()
+            # pdb.set_trace()
+            torch.cuda.synchronize()
+            times[0] += time.time() - start
+            start = time.time()
 
-                # pdb.set_trace()
-                out_img = rasterize_gaussians(
-                    xys,
-                    depths,
-                    radii,
-                    num_tiles_hit,
-                    transMats,
-                    u_transforms,
-                    v_transforms,
-                    w_transforms,
-                    self.rgbs,
-                    self.opacities,
-                    # torch.sigmoid(self.rgbs),
-                    # torch.sigmoid(self.opacities),
-                    self.H,
-                    self.W,
-                    B_SIZE,
-                    self.background,
-                )[..., :3]
-                # pdb.set_trace()
-                torch.cuda.synchronize()
-                times[1] += time.time() - start
-                loss = mse_loss(out_img, self.gt_image)
-                optimizer.zero_grad()
-                start = time.time()
-                # pdb.set_trace()
-                # loss.backward()
-                # print("after backward")
-                # print("Here!!!")
-                torch.cuda.synchronize()
-                times[2] += time.time() - start
-                optimizer.step()
-                print(f"Iteration {iter + 1}/{iterations}, Loss: {loss.item()}")
+            # pdb.set_trace()
+            out_img = rasterize_gaussians(
+                xys,
+                depths,
+                radii,
+                num_tiles_hit,
+                transMats,
+                u_transforms,
+                v_transforms,
+                w_transforms,
+                self.rgbs,
+                self.opacities,
+                # torch.sigmoid(self.rgbs),
+                # torch.sigmoid(self.opacities),
+                self.H,
+                self.W,
+                B_SIZE,
+                self.background,
+            )[..., :3]
+            # pdb.set_trace()
+            torch.cuda.synchronize()
+            times[1] += time.time() - start
+            loss = mse_loss(out_img, self.gt_image)
+            optimizer.zero_grad()
+            start = time.time()
+            # pdb.set_trace()
+            loss.backward()
+            # print("after backward")
+            # print("Here!!!")
+            torch.cuda.synchronize()
+            times[2] += time.time() - start
+            optimizer.step()
+            print(f"Iteration {iter + 1}/{iterations}, Loss: {loss.item()}")
 
-                if save_imgs and iter % 5 == 0:
-                    frames.append((out_img.detach().cpu().numpy() * 255).astype(np.uint8))
+            if save_imgs and iter % 5 == 0:
+                frames.append((out_img.detach().cpu().numpy() * 255).astype(np.uint8))
 
-                break
+            # break
 
         if save_imgs:
             # save them as a gif with PIL
