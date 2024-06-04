@@ -197,6 +197,9 @@ class _ProjectGaussians(Function):
             quats,
             viewmat,
             transMats,
+            u_transforms,
+            v_transforms,
+            w_transforms,
             ctx.fx,
             ctx.fy,
             ctx.cx,
@@ -206,6 +209,9 @@ class _ProjectGaussians(Function):
             cov3d,
             radii,
             dL_dtransMats,
+            v_u_transforms,
+            v_v_transforms,
+            v_w_transforms
             # dL_dnormal3Ds
             # conics,
             # compensation,

@@ -77,17 +77,17 @@ __device__ void build_H(
     const float* transMat,
 
     //====== New Version ======//
-    const float3* u_transform,
-    const float3* v_transform,
-    const float3* w_transform,
+    const float3& u_transform,
+    const float3& v_transform,
+    const float3& w_transform,
 
     // grad input
     const float* dL_dtransMat,
 
     //====== New Version ======//
-    const float3* v_u_transform,
-    const float3* v_v_transform,
-    const float3* v_w_transform,
+    const float3& v_u_transform,
+    const float3& v_v_transform,
+    const float3& v_w_transform,
     // const float* dL_dnormal3D,
 
     // grad output

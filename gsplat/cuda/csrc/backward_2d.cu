@@ -33,9 +33,16 @@ __global__ void project_gaussians_backward_kernel(
     const float* __restrict__ cov3d,
     const int* __restrict__ radii,
     const float* __restrict__ transMats,
+    const float3* __restrict__ u_transforms,
+    const float3* __restrict__ v_transforms,
+    const float3* __restrict__ w_transforms,
 
     // grad input 
     float* __restrict__ dL_dtransMats,
+    float3* __restrict__ v_u_transforms,
+    float3* __restrict__ v_v_transforms,
+    float3* __restrict__ v_w_transforms,
+
     // const float* __restrict__ dL_dnormal3Ds,
 
     // grad output
@@ -70,8 +77,16 @@ __global__ void project_gaussians_backward_kernel(
         img_size.y,
         transMats,
 
+        u_transforms,
+        v_transforms,
+        w_transforms,
+
         v_mean2Ds,
-        dL_dtransMats
+        dL_dtransMats,
+
+        v_u_transforms,
+        v_v_transforms,
+        v_w_transforms
     );
     
     build_H(
@@ -84,8 +99,16 @@ __global__ void project_gaussians_backward_kernel(
         tan_fovy,
         transMat,
 
+        u_transforms[idx],
+        v_transforms[idx],
+        w_transforms[idx],
+
         // grad input
         dL_dtransMat,
+
+        v_u_transforms[idx],
+        v_v_transforms[idx],
+        v_w_transforms[idx],
         // dL_dnormal3D,
 
         // grad output
@@ -394,17 +417,17 @@ __device__ void build_H(
     const float* transMat,
 
     //====== New Verision ======//
-    const float3* u_transform,
-    const float3* v_transform,
-    const float3* w_transform,
+    const float3& u_transform,
+    const float3& v_transform,
+    const float3& w_transform,
 
     // grad input
     const float* dL_dtransMat,
 
     //====== New Version ======//
-    const float3* v_u_transform,
-    const float3* v_v_transform,
-    const float3* v_w_transform,
+    const float3& v_u_transform,
+    const float3& v_v_transform,
+    const float3& v_w_transform,
     // const float* dL_dnormal3D,
 
     // grad output
@@ -553,9 +576,9 @@ __device__ void build_AABB(
     v_v_transforms[idx].x += dL_dT1.x;
     v_v_transforms[idx].y += dL_dT1.y;
     v_v_transforms[idx].z += dL_dT1.z;
-    v_w_transforms[idx].x += dL_dT2.x;
-    v_w_transforms[idx].y += dL_dT2.y;
-    v_w_transforms[idx].z += dL_dT2.z;
+    v_w_transforms[idx].x += dL_dT3.x;
+    v_w_transforms[idx].y += dL_dT3.y;
+    v_w_transforms[idx].z += dL_dT3.z;
 
 
     // just use to hack the projected 2D gradient here.

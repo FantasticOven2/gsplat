@@ -254,7 +254,14 @@ class _RasterizeGaussians(Function):
                 # rasterize_fn = _C.nd_rasterize_backward
                 rasterize_fn = _C.rasterize_backward
 
-            v_xy, v_xy_abs, v_transMats, v_colors, v_opacity = rasterize_fn(
+            (v_xy, 
+             v_xy_abs, 
+             v_transMats, 
+             v_u_transforms,
+             v_v_transforms,
+             v_w_transforms,
+             v_colors, 
+             v_opacity) = rasterize_fn(
                 img_height,
                 img_width,
                 ctx.block_width,
@@ -262,6 +269,9 @@ class _RasterizeGaussians(Function):
                 tile_bins,
                 xys,
                 transMats,
+                u_transforms,
+                v_transforms,
+                w_transforms,
                 colors,
                 opacity,
                 background,
@@ -290,6 +300,9 @@ class _RasterizeGaussians(Function):
             None,  # radii
             # v_conic,  # conics
             v_transMats, # transMats
+            v_u_transforms,
+            v_v_transforms,
+            v_w_transforms,
             None,  # num_tiles_hit
             v_colors,  # colors
             v_opacity,  # opacity
