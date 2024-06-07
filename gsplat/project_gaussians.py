@@ -1,6 +1,6 @@
 """Python bindings for 3D gaussian projection"""
 
-from typing import Optional, Tuple
+from typing import Optional, Tuple, Literal
 
 import torch
 from jaxtyping import Float
@@ -24,6 +24,7 @@ def project_gaussians(
     img_width: int,
     block_width: int,
     clip_thresh: float = 0.01,
+    model_type: Literal["3dgs", "2dgs"] = "3dgs"
 ) -> Tuple[Tensor, Tensor, Tensor, Tensor, Tensor, Tensor, Tensor]:
     """This function projects 3D gaussians to 2D using the EWA splatting method for gaussian splatting.
 
@@ -58,24 +59,258 @@ def project_gaussians(
     """
     assert block_width > 1 and block_width <= 16, "block_width must be between 2 and 16"
     assert (quats.norm(dim=-1) - 1 < 1e-6).all(), "quats must be normalized"
-    return _ProjectGaussians.apply(
-        means3d.contiguous(),
-        scales.contiguous(),
-        glob_scale,
-        quats.contiguous(),
-        viewmat.contiguous(),
-        fx,
-        fy,
-        cx,
-        cy,
-        img_height,
-        img_width,
-        block_width,
-        clip_thresh,
-    )
+    
+        #    ctx,
+        # means3d: Float[Tensor, "*batch 3"],
+        # scales: Float[Tensor, "*batch 3"],
+        # glob_scale: float,
+        # quats: Float[Tensor, "*batch 4"],
+        # viewmat: Float[Tensor, "4 4"],
+        # fx: float,
+        # fy: float,
+        # cx: float,
+        # cy: float,
+        # img_height: int,
+        # img_width: int,
+        # block_width: int,
+        # clip_thresh: float = 0.01, 
+    print(model_type)
+    if model_type == "3dgs":
+        return _ProjectGaussians_3DGS.apply(
+            means3d.contiguous(),
+            scales.contiguous(),
+            glob_scale,
+            quats.contiguous(),
+            viewmat.contiguous(),
+            fx,
+            fy,
+            cx,
+            cy,
+            img_height,
+            img_width,
+            block_width,
+            clip_thresh,
+        )
+    elif model_type == "2dgs":
+        return _ProjectGaussians_2DGS.apply(
+            means3d.contiguous(),
+            scales.contiguous(),
+            glob_scale,
+            quats.contiguous(),
+            viewmat.contiguous(),
+            fx,
+            fy,
+            cx,
+            cy,
+            img_height,
+            img_width,
+            block_width,
+            clip_thresh,
+        )
+    else:
+        raise NotImplementedError()
 
+class _ProjectGaussians_2DGS(Function):
+    """Project 3D gaussians to 2D."""
 
-class _ProjectGaussians(Function):
+    @staticmethod
+    def forward(
+        ctx,
+        means3d: Float[Tensor, "*batch 3"],
+        scales: Float[Tensor, "*batch 3"],
+        glob_scale: float,
+        quats: Float[Tensor, "*batch 4"],
+        viewmat: Float[Tensor, "4 4"],
+        fx: float,
+        fy: float,
+        cx: float,
+        cy: float,
+        img_height: int,
+        img_width: int,
+        block_width: int,
+        clip_thresh: float = 0.01,
+    ):
+        num_points = means3d.shape[-2]
+        if num_points < 1 or means3d.shape[-1] != 3:
+            raise ValueError(f"Invalid shape for means3d: {means3d.shape}")
+
+        (
+            cov3d,
+            xys,
+            depths,
+            radii,
+            num_tiles_hit,
+            ray_transformations
+        ) = _C.project_gaussians_forward_2dgs(
+            num_points,
+            means3d,
+            scales,
+            glob_scale,
+            quats,
+            viewmat,
+            fx,
+            fy,
+            cx,
+            cy,
+            img_height,
+            img_width,
+            block_width,
+            clip_thresh,
+        )
+
+        # Save non-tensors.
+        ctx.img_height = img_height
+        ctx.img_width = img_width
+        ctx.num_points = num_points
+        ctx.glob_scale = glob_scale
+        ctx.fx = fx
+        ctx.fy = fy
+        ctx.cx = cx
+        ctx.cy = cy
+
+        # Save tensors.
+        ctx.save_for_backward(
+            means3d,
+            scales,
+            quats,
+            viewmat,
+            cov3d,
+            radii,
+            ray_transformations
+        )
+        # pdb.set_trace()
+        return (xys, depths, radii, num_tiles_hit, cov3d, ray_transformations)
+
+    @staticmethod
+    def backward(
+        ctx,
+        dL_dxys,
+        dL_ddepths,
+        dL_dradii,
+        dL_dnum_tile_hit,
+        dL_dcov3d,
+        dL_dray_transformations
+        # v_xys,
+        # v_depths,
+        # v_radii,
+        # v_conics,
+        # v_compensation,
+        # v_num_tiles_hit,
+        # v_cov3d,
+    ):
+        # pdb.set_trace()
+        (
+            means3d,
+            scales,
+            quats,
+            viewmat,
+            cov3d,
+            radii,
+            ray_transformations
+        ) = ctx.saved_tensors
+
+        # pdb.set_trace()
+        (v_mean3d, v_scale, v_quat, v_normal2d) = _C.project_gaussians_backward_2dgs(
+            ctx.num_points,
+            means3d,
+            scales,
+            ctx.glob_scale,
+            quats,
+            viewmat,
+            ray_transformations,
+            ctx.fx,
+            ctx.fy,
+            ctx.cx,
+            ctx.cy,
+            ctx.img_height,
+            ctx.img_width,
+            cov3d,
+            radii,
+            dL_dray_transformations,
+            # dL_dnormal3Ds
+            # conics,
+            # compensation,
+            # v_xys,
+            # v_depths,
+            # v_conics,
+            # v_compensation,
+        )
+
+        # pdb.set_trace()
+
+        if viewmat.requires_grad:
+            v_viewmat = torch.zeros_like(viewmat)
+            R = viewmat[..., :3, :3]
+
+            # Denote ProjectGaussians for a single Gaussian (mean3d, q, s)
+            # viemwat = [R, t] as:
+            #
+            #   f(mean3d, q, s, R, t, intrinsics)
+            #       = g(R @ mean3d + t,
+            #           R @ cov3d_world(q, s) @ R^T ))
+            #
+            # Then, the Jacobian w.r.t., t is:
+            #
+            #   d f / d t = df / d mean3d @ R^T
+            #
+            # and, in the context of fine tuning camera poses, it is reasonable
+            # to assume that
+            #
+            #   d f / d R_ij =~ \sum_l d f / d t_l * d (R @ mean3d)_l / d R_ij
+            #                = d f / d_t_i * mean3d[j]
+            #
+            # Gradients for R and t can then be obtained by summing over
+            # all the Gaussians.
+            v_mean3d_cam = torch.matmul(v_mean3d, R.transpose(-1, -2))
+
+            # gradient w.r.t. view matrix translation
+            v_viewmat[..., :3, 3] = v_mean3d_cam.sum(-2)
+
+            # gradent w.r.t. view matrix rotation
+            for j in range(3):
+                for l in range(3):
+                    v_viewmat[..., j, l] = torch.dot(
+                        v_mean3d_cam[..., j], means3d[..., l]
+                    )
+        else:
+            v_viewmat = None
+
+        v_scale = torch.concatenate((v_scale, torch.zeros((v_scale.shape[0], 1), device="cuda:0")), dim=-1)
+        # pdb.set_trace()
+        # Return a gradient for each input.
+        # print(v_mean3d)
+        # print(v_scale)
+        # print(v_quat)
+        return (
+            # means3d: Float[Tensor, "*batch 3"],
+            v_mean3d,
+            # scales: Float[Tensor, "*batch 3"],
+            v_scale,
+            # glob_scale: float,
+            None,
+            # quats: Float[Tensor, "*batch 4"],
+            v_quat,
+            # viewmat: Float[Tensor, "4 4"],
+            v_viewmat,
+            # fx: float,
+            None,
+            # fy: float,
+            None,
+            # cx: float,
+            None,
+            # cy: float,
+            None,
+            # img_height: int,
+            None,
+            # img_width: int,
+            None,
+            # block_width: int,
+            None,
+            # clip_thresh,
+            None,
+        )
+        
+class _ProjectGaussians_3DGS(Function):
     """Project 3D gaussians to 2D."""
 
     @staticmethod
@@ -147,7 +382,8 @@ class _ProjectGaussians(Function):
         )
 
         return (xys, depths, radii, conics, compensation, num_tiles_hit, cov3d)
-
+            
+        
     @staticmethod
     def backward(
         ctx,

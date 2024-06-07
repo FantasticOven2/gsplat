@@ -2,7 +2,7 @@ import math
 import os
 import time
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Literal
 
 import numpy as np
 import torch
@@ -80,6 +80,7 @@ class SimpleTrainer:
         lr: float = 0.01,
         save_imgs: bool = False,
         B_SIZE: int = 14,
+        model_type: Literal["3dgs", "2dgs"] = "3dgs",
     ):
         optimizer = optim.Adam(
             [self.rgbs, self.means, self.scales, self.opacities, self.quats], lr
@@ -90,44 +91,94 @@ class SimpleTrainer:
         B_SIZE = 16
         for iter in range(iterations):
             start = time.time()
-            (
-                xys,
-                depths,
-                radii,
-                conics,
-                compensation,
-                num_tiles_hit,
-                cov3d,
-            ) = project_gaussians(
-                self.means,
-                self.scales,
-                1,
-                self.quats / self.quats.norm(dim=-1, keepdim=True),
-                self.viewmat,
-                self.focal,
-                self.focal,
-                self.W / 2,
-                self.H / 2,
-                self.H,
-                self.W,
-                B_SIZE,
-            )
+            if model_type == "3dgs":
+                (
+                    xys,
+                    depths,
+                    radii,
+                    conics,
+                    compensation,
+                    num_tiles_hit,
+                    cov3d,
+                ) = project_gaussians(
+                    means3d=self.means,
+                    scales=self.scales,
+                    glob_scale=1,
+                    quats=self.quats / self.quats.norm(dim=-1, keepdim=True),
+                    viewmat=self.viewmat,
+                    fx=self.focal,
+                    fy=self.focal,
+                    cx=self.W / 2,
+                    cy=self.H / 2,
+                    img_height=self.H,
+                    img_width=self.W,
+                    block_width=B_SIZE,
+                    model_type=model_type,
+                )
+            elif model_type == "2dgs":
+                (   xys,
+                    depths,
+                    radii,
+                    num_tiles_hit,
+                    cov3d,
+                    ray_transformations
+                )  = project_gaussians(
+                    self.means,
+                    self.scales,
+                    1,
+                    self.quats / self.quats.norm(dim=-1, keepdim=True),
+                    self.viewmat,
+                    self.focal,
+                    self.focal,
+                    self.W / 2,
+                    self.H / 2,
+                    self.H,
+                    self.W,
+                    B_SIZE,
+                    model_type=model_type,
+                )
+                # print(ray_transformations)
+            else:
+                raise NotImplementedError()
+            
             torch.cuda.synchronize()
             times[0] += time.time() - start
             start = time.time()
-            out_img = rasterize_gaussians(
-                xys,
-                depths,
-                radii,
-                conics,
-                num_tiles_hit,
-                torch.sigmoid(self.rgbs),
-                torch.sigmoid(self.opacities),
-                self.H,
-                self.W,
-                B_SIZE,
-                self.background,
-            )[..., :3]
+            if model_type == "3dgs":
+                out_img = rasterize_gaussians(
+                    xys=xys,
+                    depths=depths,
+                    radii=radii,
+                    conics=conics,
+                    num_tiles_hit=num_tiles_hit,
+                    colors=torch.sigmoid(self.rgbs),
+                    opacity=torch.sigmoid(self.opacities),
+                    img_height=self.H,
+                    img_width=self.W,
+                    block_width=B_SIZE,
+                    background=self.background,
+                    model_type=model_type,
+                )[..., :3]
+            elif model_type == "2dgs":
+                out_img = rasterize_gaussians(
+                    xys=xys,
+                    depths=depths,
+                    radii=radii,
+                    num_tiles_hit=num_tiles_hit,
+                    # self.rgbs,
+                    # self.opacities,
+                    colors=torch.sigmoid(self.rgbs),
+                    opacity=torch.sigmoid(self.opacities),
+                    img_height=self.H,
+                    img_width=self.W,
+                    block_width=B_SIZE,
+                    background=self.background,
+                    ray_transformations=ray_transformations,
+                    model_type=model_type,
+                )[..., :3]
+            else:
+                raise NotImplementedError()
+            
             torch.cuda.synchronize()
             times[1] += time.time() - start
             loss = mse_loss(out_img, self.gt_image)
@@ -179,6 +230,7 @@ def main(
     img_path: Optional[Path] = None,
     iterations: int = 1000,
     lr: float = 0.01,
+    model_type: Literal["3dgs", "2dgs"] = "3dgs",
 ) -> None:
     if img_path:
         gt_image = image_path_to_tensor(img_path)
@@ -193,6 +245,7 @@ def main(
         iterations=iterations,
         lr=lr,
         save_imgs=save_imgs,
+        model_type=model_type,
     )
 
 

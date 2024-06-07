@@ -1,6 +1,6 @@
 """Python bindings for custom Cuda functions"""
 
-from typing import Optional
+from typing import Optional, Literal
 
 import torch
 from jaxtyping import Float, Int
@@ -16,15 +16,17 @@ def rasterize_gaussians(
     xys: Float[Tensor, "*batch 2"],
     depths: Float[Tensor, "*batch 1"],
     radii: Float[Tensor, "*batch 1"],
-    conics: Float[Tensor, "*batch 3"],
     num_tiles_hit: Int[Tensor, "*batch 1"],
     colors: Float[Tensor, "*batch channels"],
     opacity: Float[Tensor, "*batch 1"],
     img_height: int,
     img_width: int,
     block_width: int,
+    conics: Float[Tensor, "*batch 3"] = None,
     background: Optional[Float[Tensor, "channels"]] = None,
     return_alpha: Optional[bool] = False,
+    model_type: Literal["3dgs", "2dgs"] = "3dgs",
+    ray_transformations: Float[Tensor, "*batch 3 3"] = None,
 ) -> Tensor:
     """Rasterizes 2D gaussians by sorting and binning gaussian intersections for each tile and returns an N-dimensional output using alpha-compositing.
 
@@ -71,23 +73,234 @@ def rasterize_gaussians(
     if colors.ndimension() != 2:
         raise ValueError("colors must have dimensions (N, D)")
 
-    return _RasterizeGaussians.apply(
-        xys.contiguous(),
-        depths.contiguous(),
-        radii.contiguous(),
-        conics.contiguous(),
-        num_tiles_hit.contiguous(),
-        colors.contiguous(),
-        opacity.contiguous(),
-        img_height,
-        img_width,
-        block_width,
-        background.contiguous(),
-        return_alpha,
-    )
+    if model_type == "3dgs":
+        return _RasterizeGaussians_3DGS.apply(
+            xys.contiguous(),
+            depths.contiguous(),
+            radii.contiguous(),
+            conics.contiguous(),
+            num_tiles_hit.contiguous(),
+            colors.contiguous(),
+            opacity.contiguous(),
+            img_height,
+            img_width,
+            block_width,
+            background.contiguous(),
+            return_alpha,
+        )
+    elif model_type == "2dgs":
+        return _RasterizeGaussians_2DGS.apply(
+            xys.contiguous(),
+            depths.contiguous(),
+            radii.contiguous(),
+            # conics.contiguous(),
+            ray_transformations.contiguous(),
+            num_tiles_hit.contiguous(),
+            colors.contiguous(),
+            opacity.contiguous(),
+            img_height,
+            img_width,
+            block_width,
+            background.contiguous(),
+            return_alpha,
+        )
+    else:
+        raise NotImplementedError()
 
 
-class _RasterizeGaussians(Function):
+class _RasterizeGaussians_2DGS(Function):
+    """Rasterizes 2D gaussians"""
+
+    @staticmethod
+    def forward(
+        ctx,
+        xys: Float[Tensor, "*batch 2"],
+        depths: Float[Tensor, "*batch 1"],
+        radii: Float[Tensor, "*batch 1"],
+        # conics: Float[Tensor, "*batch 3"],
+        ray_transformations: Float[Tensor, "*batch 3 3"],
+        num_tiles_hit: Int[Tensor, "*batch 1"],
+        colors: Float[Tensor, "*batch channels"],
+        opacity: Float[Tensor, "*batch 1"],
+        img_height: int,
+        img_width: int,
+        block_width: int,
+        background: Optional[Float[Tensor, "channels"]] = None,
+        return_alpha: Optional[bool] = False,
+    ) -> Tensor:
+        num_points = xys.size(0)
+        tile_bounds = (
+            (img_width + block_width - 1) // block_width,
+            (img_height + block_width - 1) // block_width,
+            1,
+        )
+        block = (block_width, block_width, 1)
+        img_size = (img_width, img_height, 1)
+
+        num_intersects, cum_tiles_hit = compute_cumulative_intersects(num_tiles_hit)
+
+        # pdb.set_trace()
+
+        if num_intersects < 1:
+            out_img = (
+                torch.ones(img_height, img_width, colors.shape[-1], device=xys.device)
+                * background
+            )
+            gaussian_ids_sorted = torch.zeros(0, 1, device=xys.device)
+            tile_bins = torch.zeros(0, 2, device=xys.device)
+            final_Ts = torch.zeros(img_height, img_width, device=xys.device)
+            final_idx = torch.zeros(img_height, img_width, device=xys.device)
+        else:
+            (
+                isect_ids_unsorted,
+                gaussian_ids_unsorted,
+                isect_ids_sorted,
+                gaussian_ids_sorted,
+                tile_bins,
+            ) = bin_and_sort_gaussians(
+                num_points,
+                num_intersects,
+                xys,
+                depths,
+                radii,
+                cum_tiles_hit,
+                tile_bounds,
+                block_width,
+            )
+
+            # pdb.set_trace()
+            
+            if colors.shape[-1] == 3:
+                rasterize_fn = _C.rasterize_forward_2dgs
+            else:
+                # rasterize_fn = _C.nd_rasterize_forward
+                rasterize_fn = _C.rasterize_forward_2dgs
+
+            out_img, final_Ts, final_idx = rasterize_fn(
+                tile_bounds,
+                block,
+                img_size,
+                gaussian_ids_sorted,
+                tile_bins,
+                xys,
+                # conics,
+                ray_transformations,
+                colors,
+                opacity,
+                background,
+            )
+            # pdb.set_trace()
+
+        ctx.img_width = img_width
+        ctx.img_height = img_height
+        ctx.num_intersects = num_intersects
+        ctx.block_width = block_width
+        ctx.save_for_backward(
+            gaussian_ids_sorted,
+            tile_bins,
+            xys,
+            ray_transformations,
+            colors,
+            opacity,
+            background,
+            final_Ts,
+            final_idx,
+        )
+
+        if return_alpha:
+            out_alpha = 1 - final_Ts
+            return out_img, out_alpha
+        else:
+            return out_img
+
+    @staticmethod
+    def backward(ctx, v_out_img, v_out_alpha=None):
+
+        # pdb.set_trace()
+
+        img_height = ctx.img_height
+        img_width = ctx.img_width
+        num_intersects = ctx.num_intersects
+
+        if v_out_alpha is None:
+            v_out_alpha = torch.zeros_like(v_out_img[..., 0])
+
+        (
+            gaussian_ids_sorted,
+            tile_bins,
+            xys,
+            # conics,
+            ray_transformations,
+            colors,
+            opacity,
+            background,
+            final_Ts,
+            final_idx,
+        ) = ctx.saved_tensors
+
+        if num_intersects < 1:
+            v_xy = torch.zeros_like(xys)
+            v_xy_abs = torch.zeros_like(xys)
+            # v_conic = torch.zeros_like(conics)
+            v_ray_transformations = torch.zeros_like(ray_transformations)
+            v_colors = torch.zeros_like(colors)
+            v_opacity = torch.zeros_like(opacity)
+
+        else:
+            if colors.shape[-1] == 3:
+                rasterize_fn = _C.rasterize_backward_2dgs
+            else:
+                # rasterize_fn = _C.nd_rasterize_backward
+                rasterize_fn = _C.rasterize_backward_2dgs
+
+            v_xy, v_xy_abs, v_ray_transformations, v_colors, v_opacity = rasterize_fn(
+                img_height,
+                img_width,
+                ctx.block_width,
+                gaussian_ids_sorted,
+                tile_bins,
+                xys,
+                ray_transformations,
+                colors,
+                opacity,
+                background,
+                final_Ts,
+                final_idx,
+                v_out_img,
+                v_out_alpha,
+            )
+            # pdb.set_trace()
+
+
+        # Abs grad for gaussian splitting criterion. See
+        # - "AbsGS: Recovering Fine Details for 3D Gaussian Splatting"
+        # - "EfficientGS: Streamlining Gaussian Splatting for Large-Scale High-Resolution Scene Representation"
+        xys.absgrad = v_xy_abs
+
+        # print("Here")
+        # print(v_xy)
+        # print(v_ray_transformations)
+        # print(v_colors)
+        # print(v_opacity)
+
+        return (
+            v_xy,  # xys
+            None,  # depths
+            None,  # radii
+            # v_conic,  # conics
+            v_ray_transformations, # ray_transformations
+            None,  # num_tiles_hit
+            v_colors,  # colors
+            v_opacity,  # opacity
+            None,  # img_height
+            None,  # img_width
+            None,  # block_width
+            None,  # background
+            None,  # return_alpha
+        )
+
+
+class _RasterizeGaussians_3DGS(Function):
     """Rasterizes 2D gaussians"""
 
     @staticmethod

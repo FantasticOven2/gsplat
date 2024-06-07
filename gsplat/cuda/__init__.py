@@ -24,3 +24,9 @@ map_gaussian_to_intersects = _make_lazy_cuda_func("map_gaussian_to_intersects")
 get_tile_bin_edges = _make_lazy_cuda_func("get_tile_bin_edges")
 rasterize_forward_3dgs = _make_lazy_cuda_func("rasterize_forward_3dgs")
 nd_rasterize_forward_3dgs = _make_lazy_cuda_func("nd_rasterize_forward_3dgs")
+
+###### 2DGS ######
+rasterize_forward_2dgs = _make_lazy_cuda_func("rasterize_forward_2dgs")
+rasterize_backward_2dgs = _make_lazy_cuda_func("rasterize_backward_2dgs")
+project_gaussians_forward_2dgs = _make_lazy_cuda_func("project_gaussians_forward_2dgs")
+project_gaussians_backward_2dgs = _make_lazy_cuda_func("project_gaussians_backward_2dgs")
