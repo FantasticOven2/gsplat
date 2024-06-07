@@ -5,7 +5,7 @@
 // for f : R(n) -> R(m), J in R(m, n),
 // v is cotangent in R(m), e.g. dL/df in R(m),
 // compute vjp i.e. vT J -> R(n)
-__global__ void project_gaussians_backward_kernel(
+__global__ void project_gaussians_backward_kernel_3dgs(
     const int num_points,
     const float3* __restrict__ means3d,
     const float3* __restrict__ scales,
@@ -30,7 +30,7 @@ __global__ void project_gaussians_backward_kernel(
 );
 
 // compute jacobians of output image wrt binned and sorted gaussians
-__global__ void nd_rasterize_backward_kernel(
+__global__ void nd_rasterize_backward_kernel_3dgs(
     const dim3 tile_bounds,
     const dim3 img_size,
     const unsigned channels,
@@ -52,7 +52,7 @@ __global__ void nd_rasterize_backward_kernel(
     float* __restrict__ v_opacity
 );
 
-__global__ void rasterize_backward_kernel(
+__global__ void rasterize_backward_kernel_3dgs(
     const dim3 tile_bounds,
     const dim3 img_size,
     const int32_t* __restrict__ gaussian_ids_sorted,

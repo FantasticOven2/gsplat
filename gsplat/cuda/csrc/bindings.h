@@ -47,7 +47,7 @@ std::tuple<
     torch::Tensor,
     torch::Tensor,
     torch::Tensor>
-project_gaussians_forward_tensor(
+project_gaussians_forward_tensor_3dgs(
     const int num_points,
     torch::Tensor &means3d,
     torch::Tensor &scales,
@@ -70,7 +70,7 @@ std::tuple<
     torch::Tensor,
     torch::Tensor,
     torch::Tensor>
-project_gaussians_backward_tensor(
+project_gaussians_backward_tensor_3dgs(
     const int num_points,
     torch::Tensor &means3d,
     torch::Tensor &scales,
@@ -115,7 +115,7 @@ std::tuple<
     torch::Tensor,
     torch::Tensor,
     torch::Tensor
-> rasterize_forward_tensor(
+> rasterize_forward_tensor_3dgs(
     const std::tuple<int, int, int> tile_bounds,
     const std::tuple<int, int, int> block,
     const std::tuple<int, int, int> img_size,
@@ -132,7 +132,7 @@ std::tuple<
     torch::Tensor,
     torch::Tensor,
     torch::Tensor
-> nd_rasterize_forward_tensor(
+> nd_rasterize_forward_tensor_3dgs(
     const std::tuple<int, int, int> tile_bounds,
     const std::tuple<int, int, int> block,
     const std::tuple<int, int, int> img_size,
@@ -154,7 +154,7 @@ std::
         torch::Tensor, // dL_dcolors
         torch::Tensor  // dL_dopacity
         >
-    nd_rasterize_backward_tensor(
+    nd_rasterize_backward_tensor_3dgs(
         const unsigned img_height,
         const unsigned img_width,
         const unsigned block_width,
@@ -179,7 +179,7 @@ std::
         torch::Tensor, // dL_dcolors
         torch::Tensor  // dL_dopacity
         >
-    rasterize_backward_tensor(
+    rasterize_backward_tensor_3dgs(
         const unsigned img_height,
         const unsigned img_width,
         const unsigned block_width,

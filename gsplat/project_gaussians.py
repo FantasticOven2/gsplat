@@ -107,7 +107,7 @@ class _ProjectGaussians(Function):
             conics,
             compensation,
             num_tiles_hit,
-        ) = _C.project_gaussians_forward(
+        ) = _C.project_gaussians_forward_3dgs(
             num_points,
             means3d,
             scales,
@@ -170,7 +170,7 @@ class _ProjectGaussians(Function):
             compensation,
         ) = ctx.saved_tensors
 
-        (v_cov2d, v_cov3d, v_mean3d, v_scale, v_quat) = _C.project_gaussians_backward(
+        (v_cov2d, v_cov3d, v_mean3d, v_scale, v_quat) = _C.project_gaussians_backward_3dgs(
             ctx.num_points,
             means3d,
             scales,

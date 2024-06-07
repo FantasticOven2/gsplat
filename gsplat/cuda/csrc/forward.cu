@@ -10,7 +10,7 @@ namespace cg = cooperative_groups;
 
 // kernel function for projecting each gaussian on device
 // each thread processes one gaussian
-__global__ void project_gaussians_forward_kernel(
+__global__ void project_gaussians_forward_kernel_3dgs(
     const int num_points,
     const float3* __restrict__ means3d,
     const float3* __restrict__ scales,
@@ -172,7 +172,7 @@ __global__ void get_tile_bin_edges(
 // kernel function for rasterizing each tile
 // each thread treats a single pixel
 // each thread group uses the same gaussian data in a tile
-__global__ void nd_rasterize_forward(
+__global__ void nd_rasterize_forward_3dgs(
     const dim3 tile_bounds,
     const dim3 img_size,
     const unsigned channels,
@@ -293,7 +293,7 @@ __global__ void nd_rasterize_forward(
     }
 }
 
-__global__ void rasterize_forward(
+__global__ void rasterize_forward_3dgs(
     const dim3 tile_bounds,
     const dim3 img_size,
     const int32_t* __restrict__ gaussian_ids_sorted,

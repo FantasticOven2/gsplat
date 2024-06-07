@@ -144,9 +144,9 @@ class _RasterizeGaussians(Function):
                 block_width,
             )
             if colors.shape[-1] == 3:
-                rasterize_fn = _C.rasterize_forward
+                rasterize_fn = _C.rasterize_forward_3dgs
             else:
-                rasterize_fn = _C.nd_rasterize_forward
+                rasterize_fn = _C.nd_rasterize_forward_3dgs
 
             out_img, final_Ts, final_idx = rasterize_fn(
                 tile_bounds,
@@ -213,9 +213,9 @@ class _RasterizeGaussians(Function):
 
         else:
             if colors.shape[-1] == 3:
-                rasterize_fn = _C.rasterize_backward
+                rasterize_fn = _C.rasterize_backward_3dgs
             else:
-                rasterize_fn = _C.nd_rasterize_backward
+                rasterize_fn = _C.nd_rasterize_backward_3dgs
             v_xy, v_xy_abs, v_conic, v_colors, v_opacity = rasterize_fn(
                 img_height,
                 img_width,

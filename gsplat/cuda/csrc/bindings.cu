@@ -159,7 +159,7 @@ std::tuple<
     torch::Tensor,
     torch::Tensor,
     torch::Tensor>
-project_gaussians_forward_tensor(
+project_gaussians_forward_tensor_3dgs(
     const int num_points,
     torch::Tensor &means3d,
     torch::Tensor &scales,
@@ -203,7 +203,7 @@ project_gaussians_forward_tensor(
     torch::Tensor num_tiles_hit_d =
         torch::zeros({num_points}, means3d.options().dtype(torch::kInt32));
 
-    project_gaussians_forward_kernel<<<
+    project_gaussians_forward_kernel_3dgs<<<
         (num_points + N_THREADS - 1) / N_THREADS,
         N_THREADS>>>(
         num_points,
@@ -238,7 +238,7 @@ std::tuple<
     torch::Tensor,
     torch::Tensor,
     torch::Tensor>
-project_gaussians_backward_tensor(
+project_gaussians_backward_tensor_3dgs(
     const int num_points,
     torch::Tensor &means3d,
     torch::Tensor &scales,
@@ -281,7 +281,7 @@ project_gaussians_backward_tensor(
     torch::Tensor v_quat =
         torch::zeros({num_points, 4}, means3d.options().dtype(torch::kFloat32));
 
-    project_gaussians_backward_kernel<<<
+    project_gaussians_backward_kernel_3dgs<<<
         (num_points + N_THREADS - 1) / N_THREADS,
         N_THREADS>>>(
         num_points,
@@ -376,7 +376,7 @@ torch::Tensor get_tile_bin_edges_tensor(
 }
 
 std::tuple<torch::Tensor, torch::Tensor, torch::Tensor>
-rasterize_forward_tensor(
+rasterize_forward_tensor_3dgs(
     const std::tuple<int, int, int> tile_bounds,
     const std::tuple<int, int, int> block,
     const std::tuple<int, int, int> img_size,
@@ -426,7 +426,7 @@ rasterize_forward_tensor(
         {img_height, img_width}, xys.options().dtype(torch::kInt32)
     );
 
-    rasterize_forward<<<tile_bounds_dim3, block_dim3>>>(
+    rasterize_forward_3dgs<<<tile_bounds_dim3, block_dim3>>>(
         tile_bounds_dim3,
         img_size_dim3,
         gaussian_ids_sorted.contiguous().data_ptr<int32_t>(),
@@ -446,7 +446,7 @@ rasterize_forward_tensor(
 
 
 std::tuple<torch::Tensor, torch::Tensor, torch::Tensor>
-nd_rasterize_forward_tensor(
+nd_rasterize_forward_tensor_3dgs(
     const std::tuple<int, int, int> tile_bounds,
     const std::tuple<int, int, int> block,
     const std::tuple<int, int, int> img_size,
@@ -497,11 +497,11 @@ nd_rasterize_forward_tensor(
     );
     const int B = block_dim3.x * block_dim3.y;
     const uint32_t shared_mem = B*sizeof(int) + B*sizeof(float3) + B*sizeof(float3) + B*channels*sizeof(half);
-    if(cudaFuncSetAttribute(nd_rasterize_forward, cudaFuncAttributeMaxDynamicSharedMemorySize, shared_mem) != cudaSuccess){
+    if(cudaFuncSetAttribute(nd_rasterize_forward_3dgs, cudaFuncAttributeMaxDynamicSharedMemorySize, shared_mem) != cudaSuccess){
         AT_ERROR("Failed to set maximum shared memory size (requested ", shared_mem, " bytes), try lowering block_size");
     }
 
-    nd_rasterize_forward<<<tile_bounds_dim3, block_dim3, shared_mem>>>(
+    nd_rasterize_forward_3dgs<<<tile_bounds_dim3, block_dim3, shared_mem>>>(
         tile_bounds_dim3,
         img_size_dim3,
         channels,
@@ -530,7 +530,7 @@ std::
         torch::Tensor, // dL_dcolors
         torch::Tensor  // dL_dopacity
         >
-    nd_rasterize_backward_tensor(
+    nd_rasterize_backward_tensor_3dgs(
         const unsigned img_height,
         const unsigned img_width,
         const unsigned block_width,
@@ -578,10 +578,10 @@ std::
     const int B = block.x * block.y;
     //shared mem accounts for each thread having a local shared memory workspace for running sum
     const uint32_t shared_mem = B*channels*sizeof(half);
-    if(cudaFuncSetAttribute(nd_rasterize_backward_kernel, cudaFuncAttributeMaxDynamicSharedMemorySize, shared_mem) != cudaSuccess){
+    if(cudaFuncSetAttribute(nd_rasterize_backward_kernel_3dgs, cudaFuncAttributeMaxDynamicSharedMemorySize, shared_mem) != cudaSuccess){
         AT_ERROR("Failed to set maximum shared memory size (requested ", shared_mem, " bytes), try lowering block_size");
     }
-    nd_rasterize_backward_kernel<<<tile_bounds, block, shared_mem>>>(
+    nd_rasterize_backward_kernel_3dgs<<<tile_bounds, block, shared_mem>>>(
         tile_bounds,
         img_size,
         channels,
@@ -614,7 +614,7 @@ std::
         torch::Tensor, // dL_dcolors
         torch::Tensor  // dL_dopacity
         >
-    rasterize_backward_tensor(
+    rasterize_backward_tensor_3dgs(
         const unsigned img_height,
         const unsigned img_width,
         const unsigned block_width,
@@ -659,7 +659,7 @@ std::
         torch::zeros({num_points, channels}, xys.options());
     torch::Tensor v_opacity = torch::zeros({num_points, 1}, xys.options());
 
-    rasterize_backward_kernel<<<tile_bounds, block>>>(
+    rasterize_backward_kernel_3dgs<<<tile_bounds, block>>>(
         tile_bounds,
         img_size,
         gaussians_ids_sorted.contiguous().data_ptr<int>(),
