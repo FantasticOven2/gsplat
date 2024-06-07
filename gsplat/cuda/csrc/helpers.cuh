@@ -4,6 +4,9 @@
 #include "third_party/glm/glm/gtc/type_ptr.hpp"
 #include <iostream>
 
+#define FilterSize 0.7071067811865476
+#define FilterInvSquare 1/(FilterSize*FilterSize)
+
 inline __device__ void get_bbox(
     const float2 center,
     const float2 dims,
@@ -228,4 +231,14 @@ inline __device__ bool clip_near_plane(
         return true;
     }
     return false;
+}
+
+__forceinline__ __device__ float3 cross_product(
+    float3 a, float3 b
+) {
+    float3 result;
+    result.x = a.y * b.z - a.z * b.y;
+    result.y = a.z * b.x - a.x * b.z;
+    result.z = a.x * b.y - a.y * b.x;
+    return result;
 }
