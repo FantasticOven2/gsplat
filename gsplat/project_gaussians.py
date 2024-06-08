@@ -60,21 +60,6 @@ def project_gaussians(
     assert block_width > 1 and block_width <= 16, "block_width must be between 2 and 16"
     assert (quats.norm(dim=-1) - 1 < 1e-6).all(), "quats must be normalized"
     
-        #    ctx,
-        # means3d: Float[Tensor, "*batch 3"],
-        # scales: Float[Tensor, "*batch 3"],
-        # glob_scale: float,
-        # quats: Float[Tensor, "*batch 4"],
-        # viewmat: Float[Tensor, "4 4"],
-        # fx: float,
-        # fy: float,
-        # cx: float,
-        # cy: float,
-        # img_height: int,
-        # img_width: int,
-        # block_width: int,
-        # clip_thresh: float = 0.01, 
-    print(model_type)
     if model_type == "3dgs":
         return _ProjectGaussians_3DGS.apply(
             means3d.contiguous(),

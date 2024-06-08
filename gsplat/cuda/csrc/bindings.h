@@ -148,11 +148,11 @@ std::tuple<
 
 std::
     tuple<
-        torch::Tensor, // dL_dxy
-        torch::Tensor, // dL_dxy_abs
-        torch::Tensor, // dL_dconic
-        torch::Tensor, // dL_dcolors
-        torch::Tensor  // dL_dopacity
+        torch::Tensor, // v_xy
+        torch::Tensor, // v_xy_abs
+        torch::Tensor, // v_conic
+        torch::Tensor, // v_colors
+        torch::Tensor  // v_opacity
         >
     nd_rasterize_backward_tensor_3dgs(
         const unsigned img_height,
@@ -167,17 +167,17 @@ std::
         const torch::Tensor &background,
         const torch::Tensor &final_Ts,
         const torch::Tensor &final_idx,
-        const torch::Tensor &v_output, // dL_dout_color
+        const torch::Tensor &v_output, // v_out_color
         const torch::Tensor &v_output_alpha
     );
 
 std::
     tuple<
-        torch::Tensor, // dL_dxy
-        torch::Tensor, // dL_dxy_abs
-        torch::Tensor, // dL_dconic
-        torch::Tensor, // dL_dcolors
-        torch::Tensor  // dL_dopacity
+        torch::Tensor, // v_xy
+        torch::Tensor, // v_xy_abs
+        torch::Tensor, // v_conic
+        torch::Tensor, // v_colors
+        torch::Tensor  // v_opacity
         >
     rasterize_backward_tensor_3dgs(
         const unsigned img_height,
@@ -192,7 +192,7 @@ std::
         const torch::Tensor &background,
         const torch::Tensor &final_Ts,
         const torch::Tensor &final_idx,
-        const torch::Tensor &v_output, // dL_dout_color
+        const torch::Tensor &v_output, // v_out_color
         const torch::Tensor &v_output_alpha
     );
 
@@ -243,8 +243,8 @@ project_gaussians_backward_tensor_2dgs(
     const unsigned img_width,
     torch::Tensor &cov3d,
     torch::Tensor &radii,
-    torch::Tensor &dL_dray_transformations
-    // torch::Tensor &dL_dnormal3Ds
+    torch::Tensor &v_ray_transformations
+    // torch::Tensor &v_normal3Ds
 );
 
 std::tuple<
@@ -265,11 +265,11 @@ rasterize_forward_tensor_2dgs(
 );
 
 std::tuple<
-    torch::Tensor, // dL_dxy
-    torch::Tensor, // dL_dxy_abs
-    torch::Tensor, // dL_dray_transformations
-    torch::Tensor, // dL_dcolors
-    torch::Tensor>  // dL_dopacity
+    torch::Tensor, // v_xy
+    torch::Tensor, // v_xy_abs
+    torch::Tensor, // v_ray_transformations
+    torch::Tensor, // v_colors
+    torch::Tensor>  // v_opacity
 rasterize_backward_tensor_2dgs(
     const unsigned img_height,
     const unsigned img_width,
@@ -283,6 +283,6 @@ rasterize_backward_tensor_2dgs(
     const torch::Tensor &background,
     const torch::Tensor &final_Ts,
     const torch::Tensor &final_idx,
-    const torch::Tensor &v_output, // dL_dout_color
+    const torch::Tensor &v_output, // v_out_color
     const torch::Tensor &v_output_alpha
 );
