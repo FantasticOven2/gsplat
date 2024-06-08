@@ -137,7 +137,6 @@ class SimpleTrainer:
                     B_SIZE,
                     model_type=model_type,
                 )
-                # print(ray_transformations)
             else:
                 raise NotImplementedError()
             
@@ -165,8 +164,6 @@ class SimpleTrainer:
                     depths=depths,
                     radii=radii,
                     num_tiles_hit=num_tiles_hit,
-                    # self.rgbs,
-                    # self.opacities,
                     colors=torch.sigmoid(self.rgbs),
                     opacity=torch.sigmoid(self.opacities),
                     img_height=self.H,
