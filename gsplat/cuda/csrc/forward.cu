@@ -840,13 +840,16 @@ __device__ bool build_transform_and_AABB(
         glm::dot(f, M[2] * M[2])
     );
 
+
     glm::vec3 half_extend = point_image * point_image - 
         glm::vec3(
             glm::dot(f, M[0] * M[0]),
             glm::dot(f, M[1] * M[1]),
             glm::dot(f, M[2] * M[2])
         );
-    half_extend = sqrt(glm::max(half_extend, glm::vec3(0.0))); 
+    // half_extend = sqrt(glm::max(half_extend, glm::vec3(0.0))); 
+    float eps = 1e-4;
+    half_extend = sqrt(glm::vec3(max(eps, half_extend.x), max(eps, half_extend.y), max(eps, half_extend.z)));
     float truncated_R = 3.f;
 
     radius = ceil(truncated_R * max(max(half_extend.x, half_extend.y), FilterSize));
