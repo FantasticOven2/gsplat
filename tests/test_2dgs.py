@@ -91,22 +91,25 @@ def test_projection_2dgs(test_data):
     v_ray_transforms = torch.randn_like(ray_transforms) * radii[..., None, None]
     v_normals = torch.randn_like(normals) * radii[..., None]
 
-    v_quats, v_scales, v_means = torch.autograd.grad(
+    v_viewmats, v_quats, v_scales, v_means = torch.autograd.grad(
         (means2d * v_means2d).sum()
         + (depths * v_depths).sum()
         + (ray_transforms * v_ray_transforms).sum()
         + (normals * v_normals).sum(),
-        (quats, scales, means),
+        (viewmats, quats, scales, means),
     )
-    _v_quats, _v_scales, _v_means = torch.autograd.grad(
+    _v_viewmats, _v_quats, _v_scales, _v_means = torch.autograd.grad(
         (_means2d * v_means2d).sum()
         + (_depths * v_depths).sum()
         + (_ray_transforms * v_ray_transforms).sum()
         + (_normals * v_normals).sum(),
-        (quats, scales, means),
+        (viewmats, quats, scales, means),
     )
 
-    # torch.testing.assert_close(v_viewmats, _v_viewmats, rtol=1e-3, atol=1e-3)
+    import pdb
+    pdb.set_trace()
+    
+    torch.testing.assert_close(v_viewmats, _v_viewmats, rtol=1e-3, atol=1e-3)
     torch.testing.assert_close(v_quats, _v_quats, rtol=2e-1, atol=1e-2)
     torch.testing.assert_close(
         v_scales[..., :2], _v_scales[..., :2], rtol=1e-1, atol=2e-1

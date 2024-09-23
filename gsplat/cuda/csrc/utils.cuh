@@ -509,13 +509,16 @@ inline __device__ void compute_ray_transforms_aabb_vjp(
     const mat3<T> W,
     const mat3<T> P,
     const vec3<T> cam_pos,
+    const vec3<T> mean_w,
     const vec3<T> mean_c,
     const vec4<T> quat,
     const vec2<T> scale,
     mat3<T> &_v_ray_transforms,
     vec4<T> &v_quat,
     vec2<T> &v_scale,
-    vec3<T> &v_mean
+    vec3<T> &v_mean,
+    mat3<T> &v_R,
+    vec3<T> &v_t
 ) {
     if (v_means2d[0] != 0 || v_means2d[1] != 0) {
         const T distance = ray_transforms[6] * ray_transforms[6] + ray_transforms[7] * ray_transforms[7] -
@@ -557,13 +560,23 @@ inline __device__ void compute_ray_transforms_aabb_vjp(
     T multiplier = cos > 0 ? 1 : -1;
     v_tn *= multiplier;
 
-    mat3<T> v_R = mat3<T>(v_RS[0] * scale[0], v_RS[1] * scale[1], v_tn);
+    mat3<T> v_Rot = mat3<T>(v_RS[0] * scale[0], v_RS[1] * scale[1], v_tn);
 
-    quat_to_rotmat_vjp<T>(quat, v_R, v_quat);
+    quat_to_rotmat_vjp<T>(quat, v_Rot, v_quat);
     v_scale[0] += (T)glm::dot(v_RS[0], R[0]);
     v_scale[1] += (T)glm::dot(v_RS[1], R[1]);
 
     v_mean += v_RS[2];
+
+    v_R += glm::outerProduct(v_M[2], mean_w);
+
+    mat3<T> RS = quat_to_rotmat<T>(quat) *
+            mat3<T>(scale[0], 0.0, 0.0, 0.0, scale[1], 0.0, 0.0, 0.0, 1.0);
+    mat3<T> v_RS_cam = mat3<T>(v_M[0], v_M[1], v_normals * multiplier);
+
+    v_R += v_RS_cam * glm::transpose(RS);
+
+    v_t += v_M[2];
 }
 
 } // namespace gsplat

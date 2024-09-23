@@ -98,23 +98,28 @@ __global__ void fully_fused_projection_bwd_2dgs_kernel(
 
     vec3<T> v_normal = glm::make_vec3(v_normals);
 
-    vec3<T> v_mean(0.f);
+ vec3<T> v_mean(0.f);
     vec2<T> v_scale(0.f);
     vec4<T> v_quat(0.f);
-    compute_ray_transforms_aabb_vjp(
+    mat3<T> v_R(0.f);
+    vec3<T> v_t(0.f);
+    compute_ray_transforms_aabb_vjp<T>(
         ray_transforms,
         v_means2d,
         v_normal,
         R,
         P,
         t,
+        glm::make_vec3(means),
         mean_c,
         quat,
         scale,
         _v_ray_transforms,
         v_quat,
         v_scale,
-        v_mean
+        v_mean,
+        v_R,
+        v_t
     );
 
     // #if __CUDA_ARCH__ >= 700
@@ -144,6 +149,23 @@ __global__ void fully_fused_projection_bwd_2dgs_kernel(
         gpuAtomicAdd(v_quats + 3, v_quat[3]);
         gpuAtomicAdd(v_scales, v_scale[0]);
         gpuAtomicAdd(v_scales + 1, v_scale[1]);
+    }
+
+    if (v_viewmats != nullptr) {
+        auto warp_group_c = cg::labeled_partition(warp, cid);
+        warpSum(v_R, warp_group_c);
+        warpSum(v_t, warp_group_c);
+        if (warp_group_c.thread_rank() == 0) {
+            v_viewmats += cid * 16;
+            GSPLAT_PRAGMA_UNROLL
+            for (uint32_t i = 0; i < 3; i++) {
+                GSPLAT_PRAGMA_UNROLL
+                for (uint32_t j = 0; j < 3; j++) {
+                    gpuAtomicAdd(v_viewmats + i * 4 + j, v_R[j][i]);
+                }
+                gpuAtomicAdd(v_viewmats + i * 4 + 3, v_t[i]);
+            }
+        }
     }
 }
 
