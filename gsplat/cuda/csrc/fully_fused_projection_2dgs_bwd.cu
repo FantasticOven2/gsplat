@@ -98,7 +98,7 @@ __global__ void fully_fused_projection_bwd_2dgs_kernel(
 
     vec3<T> v_normal = glm::make_vec3(v_normals);
 
- vec3<T> v_mean(0.f);
+    vec3<T> v_mean(0.f);
     vec2<T> v_scale(0.f);
     vec4<T> v_quat(0.f);
     mat3<T> v_R(0.f);
