@@ -6,8 +6,6 @@ import torch
 import torch.nn.functional as F
 from torch import Tensor
 
-from examples.simple_trainer_2dgs import Runner
-
 def normalized_quat_to_rotmat(quat: Tensor) -> Tensor:
     """Convert normalized quaternion to rotation matrix.
 
@@ -211,12 +209,11 @@ class MeshExtractor(object):
     def __init__(
         self, 
         #TODO (WZ): parse Gaussian model in gsplat 
-        runner: Runner,
-        voxel_size: float,
-        depth_trunc: float,
-        sdf_trunc: float,
-        num_cluster: float,
-        mesh_res: int,   
+        # voxel_size: float,
+        # depth_trunc: float,
+        # sdf_trunc: float,
+        # num_cluster: float,
+        # mesh_res: int,   
         bg_color: Tensor=None,
     ):
         """
@@ -228,13 +225,34 @@ class MeshExtractor(object):
             bg_color = [0., 0., 0.]
         background = torch.tensor(bg_color, dtype=torch.float32, device="cuda")
 
-        self.voxel_size = voxel_size
-        self.depth_trunc = depth_trunc
-        self.sdf_trunc = sdf_trunc
-        self.num_cluster = num_cluster
-        self.mesh_res = mesh_res
+        # self.voxel_size = voxel_size
+        # self.depth_trunc = depth_trunc
+        # self.sdf_trunc = sdf_trunc
+        # self.num_cluster = num_cluster
+        # self.mesh_res = mesh_res
 
-        self.clean(self)
+        self.clean()
+
+    @torch.no_grad()
+    def set_viewpoint_stack(
+        self,
+        viewpoint_stack: torch.Tensor,
+    ) -> None:
+        self.viewpoint_stack = viewpoint_stack
+
+    @torch.no_grad()
+    def set_rgb_maps(
+        self,
+        rgb_maps: torch.Tensor,
+    ) -> None:
+        self.rgbmaps = rgb_maps
+
+    @torch.no_grad()
+    def set_depth_maps(
+        self,
+        depth_maps: torch.Tensor,
+    ) -> None:
+        self.depthmaps = depth_maps
 
     @torch.no_grad()
     def clean(self):
@@ -248,7 +266,7 @@ class MeshExtractor(object):
         viewpoint_stack,
     ):
         """
-        TODO (WZ): docstrings
+        Render Gaussian Splatting given cameras
         """
         self.clean()
         self.viewpoint_stack = viewpoint_stack
