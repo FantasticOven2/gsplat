@@ -228,7 +228,8 @@ def to_cam_open3d(viewpoint_stack, Ks, W, H):
 
         # extrinsic=np.asarray((viewpoint_cam.world_view_transform.T).cpu().numpy())
         extrinsic = extrinsic.cpu().numpy()
-        extrinsic[:3, :3] = extrinsic[:3, :3].T
+        
+        extrinsic = np.linalg.inv(extrinsic)
 
         camera = o3d.camera.PinholeCameraParameters()
         camera.extrinsic = extrinsic
@@ -388,8 +389,6 @@ class MeshExtractor(object):
             #     depth[(self.viewpoint_satck[i].gt_alpha-mask < 0.5)] = 0
             
             # make open3d rgbd
-            # import pdb
-            # pdb.set_trace()
 
             rgbd = o3d.geometry.RGBDImage.create_from_color_and_depth(
                 o3d.geometry.Image(np.asarray(np.clip(rgb.cpu().numpy(), 0.0, 1.0) * 255, order="C", dtype=np.uint8)),

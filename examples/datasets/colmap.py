@@ -64,6 +64,7 @@ class Parser:
             im = imdata[k]
             rot = im.R()
             trans = im.tvec.reshape(3, 1)
+            
             w2c = np.concatenate([np.concatenate([rot, trans], 1), bottom], axis=0)
             w2c_mats.append(w2c)
 
