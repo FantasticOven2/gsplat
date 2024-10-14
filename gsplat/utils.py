@@ -2,9 +2,14 @@ import math
 
 import numpy as np
 
+import open3d as o3d
+import trimesh
+
 import torch
 import torch.nn.functional as F
 from torch import Tensor
+
+from tqdm import tqdm
 
 def normalized_quat_to_rotmat(quat: Tensor) -> Tensor:
     """Convert normalized quaternion to rotation matrix.
@@ -204,6 +209,34 @@ def transform_poses_pca(
     return poses_recentered, transform
 
 
+def to_cam_open3d(viewpoint_stack, Ks, W, H):
+    camera_traj = []
+    for i, (extrinsic, intrins) in enumerate(zip(viewpoint_stack, Ks)):
+        # ndc2pix = torch.tensor([
+        #     [W / 2, 0, 0, (W-1) / 2],
+        #     [0, H / 2, 0, (H-1) / 2],
+        #     [0, 0, 0, 1]]).float().cuda().T
+        # intrins =  (viewpoint_cam.projection_matrix @ ndc2pix)[:3,:3].T
+        intrinsic=o3d.camera.PinholeCameraIntrinsic(
+            width=H,
+            height=W,
+            cx = intrins[0,2].item(),
+            cy = intrins[1,2].item(), 
+            fx = intrins[0,0].item(), 
+            fy = intrins[1,1].item()
+        )
+
+        # extrinsic=np.asarray((viewpoint_cam.world_view_transform.T).cpu().numpy())
+        extrinsic = extrinsic.cpu().numpy()
+        extrinsic[:3, :3] = extrinsic[:3, :3].T
+
+        camera = o3d.camera.PinholeCameraParameters()
+        camera.extrinsic = extrinsic
+        camera.intrinsic = intrinsic
+        camera_traj.append(camera)
+
+    return camera_traj
+
 class MeshExtractor(object):
 
     def __init__(
@@ -239,6 +272,13 @@ class MeshExtractor(object):
         viewpoint_stack: torch.Tensor,
     ) -> None:
         self.viewpoint_stack = viewpoint_stack
+
+    @torch.no_grad()
+    def set_Ks(
+        self,
+        Ks: torch.Tensor,
+    ) -> None:
+        self.Ks = Ks
 
     @torch.no_grad()
     def set_rgb_maps(
@@ -289,11 +329,12 @@ class MeshExtractor(object):
         """
         torch.cuda.empty_cache()
 
-        c2ws = np.array([np.linalg.inv(np.asarray((cam.world_view_transform.T).cpu().numpy())) for cam in self.viewpoint_stack])
+        c2ws = np.array([np.asarray((camtoworld).cpu().numpy()) for camtoworld in self.viewpoint_stack])
         poses = c2ws[:, :3, :] @ np.diag([1, -1, -1, 1]) # opengl to opencv?
         center = (focus_point_fn(poses))
         self.radius = np.linalg.norm(c2ws[:, :3, 3] - center, axis=-1).min()
         self.center = torch.from_numpy(center).float().cuda()
+
         print(f"The estimated bounding radius is: {self.radius:.2f}")
         print(f"Use at least {2.0 * self.radius:.2f} for depth_trunc")
 
@@ -321,18 +362,38 @@ class MeshExtractor(object):
             color_type=o3d.pipelines.integration.TSDFVolumeColorType.RGB8
         )
 
-        for i, cam_o3d in tqdm(enumerate(to_cam_open3d(self.viewpoint_stack)), desc="TSDF integration progress"):
+        W, H = self.rgbmaps.shape[1:3]
+
+
+        for i, cam_o3d in tqdm(enumerate(to_cam_open3d(self.viewpoint_stack, self.Ks, W, H)), desc="TSDF integration progress"):
+    
             rgb = self.rgbmaps[i]
             depth = self.depthmaps[i]
 
+            import imageio
+
+            surf_norm_save = rgb.detach().cpu()
+            surf_norm_save = (surf_norm_save * 0.5 + 0.5)
+            surf_norm_save = (surf_norm_save - torch.min(surf_norm_save)) / (torch.max(surf_norm_save) - torch.min(surf_norm_save))
+            imageio.imwrite(f"./tmp.png", (surf_norm_save * 255).numpy().astype(np.uint8))
+
+            surf_norm_save = depth.detach().cpu().repeat(1, 1, 3)
+            surf_norm_save = (surf_norm_save * 0.5 + 0.5)
+            surf_norm_save = (surf_norm_save - torch.min(surf_norm_save)) / (torch.max(surf_norm_save) - torch.min(surf_norm_save))
+            imageio.imwrite(f"./tmp_depth.png", (surf_norm_save * 255).numpy().astype(np.uint8))
+        
+
             # if we have mask provided, use it
-            if mask_background and (self.viewpoint_stack[i].gt_alpha_mask is not None):
-                depth[(self.viewpoint_satck[i].gt_alpha-mask < 0.5)] = 0
+            # if mask_background and (self.viewpoint_stack[i].gt_alpha_mask is not None):
+            #     depth[(self.viewpoint_satck[i].gt_alpha-mask < 0.5)] = 0
             
             # make open3d rgbd
+            # import pdb
+            # pdb.set_trace()
+
             rgbd = o3d.geometry.RGBDImage.create_from_color_and_depth(
-                o3d.geometry.Image(np.asarray(np.clip(rgb.permute(1, 2, 0).cpu().numpy(), 0.0, 1.0) * 255, order="C", dtype=np.uint8)),
-                o3d.geometry.Image(np.asarray(depth.permute(1, 2, 0).cpu().numpy(), order="C")),
+                o3d.geometry.Image(np.asarray(np.clip(rgb.cpu().numpy(), 0.0, 1.0) * 255, order="C", dtype=np.uint8)),
+                o3d.geometry.Image(np.asarray(depth.cpu().numpy(), order="C")),
                 depth_trunc=depth_trunc,
                 convert_rgb_to_intensity=False,
                 depth_scale=1.0

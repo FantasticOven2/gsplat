@@ -1,6 +1,10 @@
 
+import os
+
 import tyro
 import torch
+
+import open3d as o3d
 
 from tqdm import tqdm
 from argparse import ArgumentParser
@@ -22,6 +26,11 @@ if __name__ == "__main__":
     # parser.add_argument("--num_cluster", default=50, type=int, help='Mesh: number of connected clusters to export')
     # parser.add_argument("--mesh_res", default=1024, type=int, help='Mesh: resolution for unbounded mesh extraction')
     # args = parser.parse_args()
+    voxel_size = -1.0
+    depth_trunc = -1.0
+    sdf_trunc = -1.0
+    num_cluster = 50
+    mesh_res = 1024
 
     cfg = tyro.cli(Config)
     cfg.adjust_steps(cfg.steps_scaler)
@@ -53,6 +62,7 @@ if __name__ == "__main__":
     pbar = tqdm(range(len(runner.trainset)))
 
     viewpoint_cam = []
+    intrins = []
     render_rgbs = []
     render_depths = []
 
@@ -85,35 +95,41 @@ if __name__ == "__main__":
             )
 
             render_rgbs.append(colors[..., :3])
+            # render_depths.append(render_median)
             render_depths.append(colors[..., 3:])
-            viewpoint_cam.append(camtoworlds)
+            viewpoint_cam.append(data["camtoworld"])
+            intrins.append(data["K"])
 
     mesh_extractor.set_viewpoint_stack(
-        torch.stack(viewpoint_cam)
+        torch.stack(viewpoint_cam).squeeze(1)
+    )
+    mesh_extractor.set_Ks(
+        torch.stack(intrins).squeeze(1)
     )
     mesh_extractor.set_rgb_maps(
-        torch.stack(render_rgbs)
+        torch.stack(render_rgbs).squeeze(1)
     )
     mesh_extractor.set_depth_maps(
-        torch.stack(render_depths)
+        torch.stack(render_depths).squeeze(1)
     )
+
+    mesh_extractor.estimate_bounding_sphere()
+
+    # Step 2: extract mesh
+    depth_trunc = (mesh_extractor.radius * 2.0) if depth_trunc < 0 else depth_trunc
+    voxel_size = (depth_trunc / mesh_res) if voxel_size < 0 else voxel_size
+    sdf_trunc = 5.0 * voxel_size if sdf_trunc < 0 else sdf_trunc
+    mesh = mesh_extractor.extract_mesh_bounded(voxel_size=voxel_size, sdf_trunc=sdf_trunc, depth_trunc=depth_trunc)
 
     import pdb
     pdb.set_trace()
 
-
-    # Step 2: extract mesh
-    depth_trunc = (mesh_extractor.radius * 2.0) if args.depth_trunc < 0 else args.depth_trunc
-    voxel_size = (depth_trunc / args.mesh_res) if args.voxel_size < 0 else args.voxel_size
-    sdf_trunc = 5.0 * voxel_size if args.sdf_trunc < 0 else args.sdf_trunc
-    mesh = gaussExtractor.extract_mesh_bounded(voxel_size=voxel_size, sdf_trunc=sdf_trunc, depth_trunc=depth_trunc)
-
     name = "fused.ply"
     # Step 3: save mesh to file
-    o3d.io.write_triangle_mesh(os.path.join(train_dir, name), mesh)
-    print(f"mesh saved at {os.path.join(train_dir, name)}")
+    o3d.io.write_triangle_mesh(os.path.join(cfg.result_dir, name), mesh)
+    print(f"mesh saved at {os.path.join(cfg.result_dir, name)}")
 
     # Step 4: Post-process the mesh and save, saving the largest N_clusters
-    mesh_post = post_process_mesh(mesh, cluster_to_keep=args.num_cluster)
-    o3d.io.write_triangle_mesh(os.path.join(train_dir, name.replace(".ply", "_post.ply")), mesh_post)
-    print("mesh post processed saved at {}".format(os.path.join(train_dir, name.replace('.ply', '_post.ply'))))
+    # mesh_post = post_process_mesh(mesh, cluster_to_keep=num_cluster)
+    # o3d.io.write_triangle_mesh(os.path.join(cfg.result_dir, name.replace(".ply", "_post.ply")), mesh_post)
+    # print("mesh post processed saved at {}".format(os.path.join(cfg.result_dir, name.replace('.ply', '_post.ply'))))

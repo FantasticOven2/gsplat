@@ -1,4 +1,5 @@
 import os
+import copy
 from typing import Any, Dict, List, Optional
 
 import cv2
@@ -165,6 +166,7 @@ class Parser:
             k: np.array(v).astype(np.int32) for k, v in point_indices.items()
         }
 
+        original_camtoworlds = copy.deepcopy(camtoworlds)
         # Normalize the world space.
         if normalize:
             T1 = similarity_from_cameras(camtoworlds)
@@ -191,6 +193,7 @@ class Parser:
         self.points_rgb = points_rgb  # np.ndarray, (num_points, 3)
         self.point_indices = point_indices  # Dict[str, np.ndarray], image_name -> [M,]
         self.transform = transform  # np.ndarray, (4, 4)
+        self.original_camtoworlds = original_camtoworlds
 
         # load one image to check the size. In the case of tanksandtemples dataset, the
         # intrinsics stored in COLMAP corresponds to 2x upsampled images.
@@ -267,6 +270,7 @@ class Dataset:
         K = self.parser.Ks_dict[camera_id].copy()  # undistorted K
         params = self.parser.params_dict[camera_id]
         camtoworlds = self.parser.camtoworlds[index]
+        original_camtoworlds = self.parser.original_camtoworlds[index]
 
         if len(params) > 0:
             # Images are distorted. Undistort them.
@@ -290,6 +294,7 @@ class Dataset:
         data = {
             "K": torch.from_numpy(K).float(),
             "camtoworld": torch.from_numpy(camtoworlds).float(),
+            "original_camtoworlds": torch.from_numpy(original_camtoworlds).float(),
             "image": torch.from_numpy(image).float(),
             "image_id": item,  # the index of the image in the dataset
         }
